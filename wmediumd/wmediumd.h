@@ -106,6 +106,9 @@ enum {
 #define AP_DEFAULT 2
 #define MEDIUM_ID_DEFAULT 0
 
+#define AP_DEFAULT_PORT 4001
+#define PAGE_SIZE 4096
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <syslog.h>

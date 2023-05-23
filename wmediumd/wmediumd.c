@@ -43,6 +43,12 @@
 #include "wmediumd_dynamic.h"
 #include "wserver_messages.h"
 
+struct sockaddr_in serverAddr, clientAddr;
+socklen_t len;
+void* out_buf;
+char in_buf[PAGE_SIZE];
+static bool is_ap = true;
+
 static inline int div_round(int a, int b)
 {
 	return (a + b - 1) / b;
@@ -730,8 +736,8 @@ int nl_err_cb(struct sockaddr_nl *nla, struct nlmsgerr *nlerr, void *arg)
 	struct genlmsghdr *gnlh = nlmsg_data(&nlerr->msg);
 	struct wmediumd *ctx = arg;
 
-	w_flogf(ctx, LOG_DEBUG, stderr, "nl: cmd %d, seq %d: %s\n", gnlh->cmd,
-			nlerr->msg.nlmsg_seq, strerror(abs(nlerr->error)));
+	/* fprintf(stderr, "nl: cmd %d, seq %d: %s\n", gnlh->cmd,
+			nlerr->msg.nlmsg_seq, strerror(abs(nlerr->error))); */
 
 	return NL_SKIP;
 }
@@ -742,76 +748,35 @@ int nl_err_cb(struct sockaddr_nl *nla, struct nlmsgerr *nlerr, void *arg)
  */
 static int process_messages_cb(struct nl_msg *msg, void *arg)
 {
-	struct wmediumd *ctx = arg;
-	struct nlattr *attrs[HWSIM_ATTR_MAX+1];
-	/* netlink header */
 	struct nlmsghdr *nlh = nlmsg_hdr(msg);
-	/* generic netlink header*/
-	struct genlmsghdr *gnlh = nlmsg_data(nlh);
+	int numBytes, ret;
+	int fd = *(int*)arg;
 
-	struct station *sender;
-	struct frame *frame;
-	struct ieee80211_hdr *hdr;
-	u8 *src;
+	out_buf = malloc(nlh->nlmsg_len);
+	memcpy(out_buf, nlh, nlh->nlmsg_len);
 
-	if (gnlh->cmd == HWSIM_CMD_FRAME) {
-		pthread_rwlock_rdlock(&snr_lock);
-		/* we get the attributes*/
-		genlmsg_parse(nlh, 0, attrs, HWSIM_ATTR_MAX, NULL);
-		if (attrs[HWSIM_ATTR_ADDR_TRANSMITTER]) {
-			u8 *hwaddr = (u8 *)nla_data(attrs[HWSIM_ATTR_ADDR_TRANSMITTER]);
-
-			unsigned int data_len =
-				nla_len(attrs[HWSIM_ATTR_FRAME]);
-			char *data = (char *)nla_data(attrs[HWSIM_ATTR_FRAME]);
-			unsigned int flags =
-				nla_get_u32(attrs[HWSIM_ATTR_FLAGS]);
-			unsigned int tx_rates_len =
-				nla_len(attrs[HWSIM_ATTR_TX_INFO]);
-			struct hwsim_tx_rate *tx_rates =
-				(struct hwsim_tx_rate *)
-				nla_data(attrs[HWSIM_ATTR_TX_INFO]);
-			u64 cookie = nla_get_u64(attrs[HWSIM_ATTR_COOKIE]);
-			u32 freq;
-			freq = attrs[HWSIM_ATTR_FREQ] ?
-					nla_get_u32(attrs[HWSIM_ATTR_FREQ]) : 2412;
-
-			hdr = (struct ieee80211_hdr *)data;
-			src = hdr->addr2;
-
-			if (data_len < 6 + 6 + 4)
-				goto out;
-
-			sender = get_station_by_addr(ctx, src);
-			if (!sender) {
-				w_flogf(ctx, LOG_ERR, stderr, "Unable to find sender station " MAC_FMT "\n", MAC_ARGS(src));
-				goto out;
-			}
-			memcpy(sender->hwaddr, hwaddr, ETH_ALEN);
-
-			frame = malloc(sizeof(*frame) + data_len);
-			if (!frame)
-				goto out;
-
-			memcpy(frame->data, data, data_len);
-			frame->data_len = data_len;
-			frame->flags = flags;
-			frame->cookie = cookie;
-			frame->freq = freq;
-			frame->sender = sender;
-			sender->freq = freq;
-			frame->tx_rates_count =
-				tx_rates_len / sizeof(struct hwsim_tx_rate);
-			memcpy(frame->tx_rates, tx_rates,
-			       min(tx_rates_len, sizeof(frame->tx_rates)));
-			queue_frame(ctx, sender, frame);
+	if (is_ap){
+		numBytes = sendto(fd, out_buf, nlh->nlmsg_len, 0, (struct sockaddr*)&clientAddr, len);
+        if (numBytes < 0){
+			perror("Send to client failed");
+			//fprintf(stderr, "Failed to send data to client\n");
+			ret = -1;
+			goto out;
 		}
-out:
-		pthread_rwlock_unlock(&snr_lock);
-		return 0;
-
 	}
-	return 0;
+	else{
+		numBytes = sendto(fd, out_buf, nlh->nlmsg_len, 0, (struct sockaddr*)&serverAddr, len);
+        if (numBytes < 0){
+			fprintf(stderr, "Failed to send data to server\n");
+			ret = -1;
+			goto out;
+		}
+	}
+	ret = 0;
+
+out:
+	free(out_buf);
+	return ret;
 }
 
 /*
@@ -850,6 +815,103 @@ out:
 	return ret;
 }
 
+static int process_recvd_data(struct wmediumd *ctx)
+{
+	struct nlattr *attrs[HWSIM_ATTR_MAX+1];
+	/* netlink header */
+	struct nlmsghdr *nlh = (struct nlmsghdr*)in_buf;
+	/* generic netlink header*/
+	struct genlmsghdr *gnlh = nlmsg_data(nlh);
+
+	struct station *sender;
+	struct frame *frame;
+	struct ieee80211_hdr *hdr;
+	u8 *src;
+
+	if (gnlh->cmd == HWSIM_CMD_FRAME) {
+		pthread_rwlock_rdlock(&snr_lock);
+		/* we get the attributes*/
+		genlmsg_parse(nlh, 0, attrs, HWSIM_ATTR_MAX, NULL);
+		if (attrs[HWSIM_ATTR_ADDR_TRANSMITTER]) {
+			u8 *hwaddr = (u8 *)nla_data(attrs[HWSIM_ATTR_ADDR_TRANSMITTER]);
+
+			unsigned int data_len =
+				nla_len(attrs[HWSIM_ATTR_FRAME]);
+			char *data = (char *)nla_data(attrs[HWSIM_ATTR_FRAME]);
+			unsigned int flags =
+				nla_get_u32(attrs[HWSIM_ATTR_FLAGS]);
+			unsigned int tx_rates_len =
+				nla_len(attrs[HWSIM_ATTR_TX_INFO]);
+			struct hwsim_tx_rate *tx_rates =
+				(struct hwsim_tx_rate *)
+				nla_data(attrs[HWSIM_ATTR_TX_INFO]);
+			u64 cookie = nla_get_u64(attrs[HWSIM_ATTR_COOKIE]);
+			u32 freq;
+			freq = attrs[HWSIM_ATTR_FREQ] ?
+					nla_get_u32(attrs[HWSIM_ATTR_FREQ]) : 2412;
+
+			hdr = (struct ieee80211_hdr *)data;
+			src = hdr->addr2;
+			printf("f: %02x%02x d: %02x%02x ",(u32)hdr->frame_control[0], (u32)hdr->frame_control[1], (u32)hdr->duration_id[0], (u32)hdr->duration_id[1]);
+			if (data_len < 6 + 6 + 4)
+				goto out;
+
+			sender = get_station_by_addr(ctx, src);
+			if (!sender) {
+				w_flogf(ctx, LOG_ERR, stderr, "Unable to find sender station " MAC_FMT "\n", MAC_ARGS(src));
+				goto out;
+			}
+			memcpy(sender->hwaddr, hwaddr, ETH_ALEN);
+
+			frame = malloc(sizeof(*frame) + data_len);
+			if (!frame)
+				goto out;
+
+			memcpy(frame->data, data, data_len);
+			frame->data_len = data_len;
+			frame->flags = flags;
+			frame->cookie = cookie;
+			frame->freq = freq;
+			frame->sender = sender;
+			sender->freq = freq;
+			frame->tx_rates_count =
+				tx_rates_len / sizeof(struct hwsim_tx_rate);
+			memcpy(frame->tx_rates, tx_rates,
+			       min(tx_rates_len, sizeof(frame->tx_rates)));
+			printf("a1: " MAC_FMT " a2: " MAC_FMT " a3: " MAC_FMT " sq: %02x%02x r: " MAC_FMT"\n", MAC_ARGS(hdr->addr1), MAC_ARGS(hdr->addr2), MAC_ARGS(hdr->addr3), (u32)hdr->seq_ctrl[0], (u32)hdr->seq_ctrl[1], MAC_ARGS(frame->sender->hwaddr));
+			queue_frame(ctx, sender, frame);
+		}
+out:
+		pthread_rwlock_unlock(&snr_lock);
+		return 0;
+
+	}
+	return 0;
+}
+
+static void net_sock_event_cb(int fd, short what, void *data)
+{
+	struct wmediumd *ctx = data;
+	int numBytes;
+	bzero(in_buf, PAGE_SIZE);
+
+	if (is_ap){
+		numBytes = recvfrom(fd, in_buf, PAGE_SIZE, 0, (struct sockaddr*)&clientAddr, &len);
+        if (numBytes < 0){
+			fprintf(stderr, "Failed to receive data from client\n");
+			return;
+		}
+	}
+	else{
+		numBytes = recvfrom(fd, in_buf, PAGE_SIZE, 0, (struct sockaddr*)&serverAddr, &len);
+        if (numBytes < 0){
+			fprintf(stderr, "Failed to receive data from server\n");
+			return;
+		}
+	}
+	process_recvd_data(ctx);
+}
+
 static void sock_event_cb(int fd, short what, void *data)
 {
 	struct wmediumd *ctx = data;
@@ -860,7 +922,7 @@ static void sock_event_cb(int fd, short what, void *data)
 /*
  * Setup netlink socket and callbacks.
  */
-static int init_netlink(struct wmediumd *ctx)
+static int init_netlink(struct wmediumd *ctx, int* sockfd)
 {
 	struct nl_sock *sock;
 	int ret;
@@ -891,10 +953,69 @@ static int init_netlink(struct wmediumd *ctx)
 		return -1;
 	}
 
-	nl_cb_set(ctx->cb, NL_CB_MSG_IN, NL_CB_CUSTOM, process_messages_cb, ctx);
+	nl_cb_set(ctx->cb, NL_CB_MSG_IN, NL_CB_CUSTOM, process_messages_cb, sockfd);
 	nl_cb_err(ctx->cb, NL_CB_CUSTOM, nl_err_cb, ctx);
 
 	return 0;
+}
+
+int init_remote_connection(int* sockfd, char* ap_ipaddr)
+{
+	int numBytes, ret = 0;
+
+	*sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (*sockfd < 0){
+		perror("ERROR: Failed to open socket");
+		ret = -1;
+		goto out;
+	}
+    
+	bzero(&serverAddr, sizeof(serverAddr));
+    serverAddr.sin_family = AF_INET;
+	serverAddr.sin_port = htons(AP_DEFAULT_PORT);
+	len = sizeof(struct sockaddr_in);
+
+	/* AP server mode */
+	if (ap_ipaddr == NULL){
+		serverAddr.sin_addr.s_addr = INADDR_ANY;
+		if (bind(*sockfd, (struct sockaddr *)&serverAddr, len) < 0){
+			perror("ERROR: Failed to bind socket");
+			ret = -1;
+			goto out;
+		}
+		printf("Waiting for station machine to connect\n");
+		/* Wait until station machine connects. This is primarily meant to get the client details */
+		numBytes = recvfrom(*sockfd, in_buf, 5, 0, (struct sockaddr*)&clientAddr, &len);
+        if (numBytes < 0){
+			fprintf(stderr, "Failed to receive initiate command from client\n");
+			ret = -1;
+			goto out;
+		}
+		printf("Station machine connected successfully\n");
+	}
+	else{
+		struct hostent *server;
+		server = gethostbyname(ap_ipaddr);
+		if (server == NULL){
+			fprintf(stderr, "ERROR: No host with the given hostname exists\n");
+			ret = -1;
+			goto out;
+		}
+		bcopy((char*)server->h_addr_list[0], (char*)&serverAddr.sin_addr.s_addr, server->h_length);
+		
+		/* The client must send a message first for the server to know the client address details */
+		const char* initiate_comm = "start";
+		numBytes = sendto(*sockfd, initiate_comm, strlen(initiate_comm), 0, (const struct sockaddr*)&serverAddr, len);
+		if (numBytes < 0){
+			perror("ERROR: Failed to send message");
+			ret = -1;
+			goto out;
+		}
+		printf("Initiate communication command sent to access point machine\n");
+	}
+
+out:
+	return ret;
 }
 
 /*
@@ -939,11 +1060,14 @@ static void timer_cb(int fd, short what, void *data)
 int main(int argc, char *argv[])
 {
 	int opt;
-	struct event ev_cmd;
+	struct event ev_cmd, net_ev;
 	struct event ev_timer;
 	struct wmediumd ctx;
 	char *config_file = NULL;
 	char *per_file = NULL;
+	char* mode = NULL;
+	char* ap_ip = NULL;
+	int sockfd;
 
 	setvbuf(stdout, NULL, _IOLBF, BUFSIZ);
 
@@ -958,7 +1082,7 @@ int main(int argc, char *argv[])
 	bool start_server = false;
 	bool full_dynamic = false;
 
-	while ((opt = getopt(argc, argv, "hVc:l:x:sd")) != -1) {
+	while ((opt = getopt(argc, argv, "hVc:l:x:sdm:i:")) != -1) {
 		switch (opt) {
 		case 'h':
 			print_help(EXIT_SUCCESS);
@@ -995,6 +1119,13 @@ int main(int argc, char *argv[])
 			break;
 		case 's':
 			start_server = true;
+			break;
+		case 'm':
+			mode = optarg;
+			break;
+		case 'i':
+			ap_ip = optarg;
+			is_ap = false;
 			break;
 		case '?':
 			printf("wmediumd: Error - No such option: "
@@ -1035,10 +1166,14 @@ int main(int argc, char *argv[])
 	/* init libevent */
 	event_init();
 
+	if (init_remote_connection(&sockfd, is_ap ? NULL : ap_ip) < 0)
+		return EXIT_FAILURE;
 	/* init netlink */
-	if (init_netlink(&ctx) < 0)
+	if (init_netlink(&ctx, &sockfd) < 0)
 		return EXIT_FAILURE;
 
+	event_set(&net_ev, sockfd, EV_READ | EV_PERSIST, net_sock_event_cb, &ctx);
+	event_add(&net_ev, NULL);
 	event_set(&ev_cmd, nl_socket_get_fd(ctx.sock), EV_READ | EV_PERSIST,
 		  sock_event_cb, &ctx);
 	event_add(&ev_cmd, NULL);
