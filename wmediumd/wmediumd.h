@@ -135,6 +135,12 @@ typedef uint64_t u64;
 #define CCA_THRESHOLD	(-90)
 #define ENABLE_MEDIUM_DETECTION	true
 
+enum En_OperationMode
+{
+	LOCAL,
+	REMOTE
+};
+
 struct wqueue {
 	struct list_head frames;
 	int cw_min;
@@ -159,8 +165,9 @@ struct station {
 };
 
 struct wmediumd {
+	int op_mode;
 	int timerfd;
-
+	int net_sock;
 	struct nl_sock *sock;
     bool enable_medium_detection;
 	int num_stas;
