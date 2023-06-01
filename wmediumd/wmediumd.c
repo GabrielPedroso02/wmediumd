@@ -534,6 +534,38 @@ out:
 }
 
 /*
+ * Report transmit status to the transmitter.
+ */
+static int send_tx_info_frame(struct wmediumd *ctx, struct frame *frame)
+{
+	if (ctx->op_mode == LOCAL)
+		return send_tx_info_frame_nl(ctx, frame);
+	
+	int numBytes, ret;
+
+	if (is_ap){
+		numBytes = sendto(ctx->net_sock, frame, sizeof(*frame), 0, (struct sockaddr*)&clientAddr, len);
+        if (numBytes < 0){
+			w_flogf(ctx, LOG_ERR, stderr, "Failed to send xmit info to station: %s", strerror(errno));
+			ret = -1;
+			goto out;
+		}
+	}
+	else{
+		numBytes = sendto(ctx->net_sock, frame, sizeof(*frame), 0, (struct sockaddr*)&serverAddr, len);
+        if (numBytes < 0){
+			w_flogf(ctx, LOG_ERR, stderr, "Failed to send xmit info to AP station: %s", strerror(errno));
+			ret = -1;
+			goto out;
+		}
+	}
+	ret = 0;
+
+out:
+	return ret;
+}
+
+/*
  * Send a data frame to the kernel for reception at a specific radio.
  */
 int send_cloned_frame_msg(struct wmediumd *ctx, struct station *dst,
@@ -656,7 +688,7 @@ void deliver_frame(struct wmediumd *ctx, struct frame *frame)
 		set_interference_duration(ctx, frame->sender->index,
 					  frame->duration, frame->signal);
 
-	send_tx_info_frame_nl(ctx, frame);
+	send_tx_info_frame(ctx, frame);
 
 	free(frame);
 }
@@ -822,6 +854,42 @@ int nl_err_cb(struct sockaddr_nl *nla, struct nlmsgerr *nlerr, void *arg)
 	return NL_SKIP;
 }
 
+struct frame* construct_tx_info_frame(struct wmediumd *ctx, struct nlmsghdr *nlh)
+{
+	struct nlattr *attrs[HWSIM_ATTR_MAX+1];
+	struct genlmsghdr *gnlh = nlmsg_data(nlh);
+
+	struct station *sender;
+	struct frame *frame = NULL;
+	struct ieee80211_hdr *hdr;
+
+	if (gnlh->cmd == HWSIM_CMD_FRAME){
+		genlmsg_parse(nlh, 0, attrs, HWSIM_ATTR_MAX, NULL);
+		u8 *hwaddr = (u8 *)nla_data(attrs[HWSIM_ATTR_ADDR_TRANSMITTER]);
+		u64 cookie = nla_get_u64(attrs[HWSIM_ATTR_COOKIE]);
+		char *data = (char *)nla_data(attrs[HWSIM_ATTR_FRAME]);
+
+		hdr = (struct ieee80211_hdr *)data;
+
+		sender = get_station_by_addr(ctx, hdr->addr2);
+		if (!sender) {
+			w_flogf(ctx, LOG_ERR, stderr, "%s: Unable to find sender station " MAC_FMT "\n", __FUNCTION__, MAC_ARGS(hdr->addr2));
+			goto out;
+		}
+		memcpy(sender->hwaddr, hwaddr, ETH_ALEN);
+		
+		frame = malloc(sizeof(struct frame));
+		if (!frame)
+			goto out;
+		
+		frame->cookie = cookie;
+		frame->sender = sender;
+	}
+
+out:
+	return frame;
+}
+
 /*
  * Handle events from the kernel.  Process CMD_FRAME events and queue them
  * for later delivery with the scheduler.
@@ -856,6 +924,9 @@ static int process_messages_cb(struct nl_msg *msg, void *arg)
 		}
 	}
 	ret = 0;
+	struct frame* tx_frame = construct_tx_info_frame(ctx, nlh);
+	if (tx_frame != NULL)
+		list_add_tail(&tx_frame->list, &ctx->pending_txinfo_frames);
 
 out:
 	free(out_buf);
@@ -902,6 +973,8 @@ static void net_sock_event_cb(int fd, short what, void *data)
 {
 	struct wmediumd *ctx = data;
 	int numBytes;
+	struct frame* pending_frame;
+	struct frame tx_info_frame;
 	bzero(in_buf, PAGE_SIZE);
 
 	if (is_ap){
@@ -915,6 +988,22 @@ static void net_sock_event_cb(int fd, short what, void *data)
 		numBytes = recvfrom(fd, in_buf, PAGE_SIZE, 0, (struct sockaddr*)&serverAddr, &len);
         if (numBytes < 0){
 			w_flogf(ctx, LOG_ERR, stderr, "Failed to receive data from AP station: %s", strerror(errno));
+			return;
+		}
+	}
+	/* First check if the received message is for transmit status */
+	memcpy(&tx_info_frame, in_buf, sizeof(struct frame));
+	list_for_each_entry(pending_frame, &ctx->pending_txinfo_frames, list)
+	{
+		if (pending_frame->cookie == tx_info_frame.cookie){
+			pending_frame->flags = tx_info_frame.flags;
+			pending_frame->signal = tx_info_frame.signal;
+			pending_frame->tx_rates_count = tx_info_frame.tx_rates_count;
+			memcpy(pending_frame->tx_rates, tx_info_frame.tx_rates, 
+					pending_frame->tx_rates_count * sizeof(struct hwsim_tx_rate));
+			send_tx_info_frame_nl(ctx, pending_frame);
+			list_del(&pending_frame->list);
+			free(pending_frame);
 			return;
 		}
 	}
@@ -1178,6 +1267,7 @@ int main(int argc, char *argv[])
 	event_init();
 
 	if (ctx.op_mode == REMOTE){
+		INIT_LIST_HEAD(&ctx.pending_txinfo_frames);
 		if (init_remote_connection(&ctx, is_ap ? NULL : ap_ip) < 0)
 			return EXIT_FAILURE;
 		event_set(&net_ev, ctx.net_sock, EV_READ | EV_PERSIST, net_sock_event_cb, &ctx);

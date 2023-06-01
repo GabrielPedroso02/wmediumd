@@ -171,6 +171,7 @@ struct wmediumd {
 	struct nl_sock *sock;
     bool enable_medium_detection;
 	int num_stas;
+	struct list_head pending_txinfo_frames;
 	struct list_head stations;
 	struct station **sta_array;
 	int *snr_matrix;
