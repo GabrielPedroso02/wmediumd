@@ -1123,7 +1123,7 @@ out:
 void print_help(int exval)
 {
 	printf("wmediumd v%s - a wireless medium simulator\n", VERSION_STR);
-	printf("wmediumd [-h] [-V] [-s] [-l LOG_LVL] [-x FILE] -c FILE\n\n");
+	printf("wmediumd [-h] [-V] [-a AP_ADDR] [-s] [-l LOG_LVL] [-x FILE] -c FILE\n\n");
 
 	printf("  -h              print this help and exit\n");
 	printf("  -V              print version and exit\n\n");
@@ -1139,8 +1139,9 @@ void print_help(int exval)
 	printf("  -s              start the server on a socket\n");
 	printf("  -d              use the dynamic complex mode\n");
 	printf("                  (server only with matrices for each connection)\n");
-	printf("  -a AP_ADDR      Set remote operation mode with an access point address to associate with\n");
-	printf("                  AP_ADDR: IPv4 address or hostname of AP machine, \"localhost\" if current machine is AP\n");
+	printf("  -a AP_ADDR      Set remote operation mode to associate remotely\n");
+	printf("                  AP_ADDR: IPv4 address or hostname of AP machine\n");
+	printf("                  \"localhost\" if current machine is AP\n");
 
 	exit(exval);
 }
