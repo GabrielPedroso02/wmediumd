@@ -1096,7 +1096,7 @@ int init_remote_connection(struct wmediumd* ctx, char* ap_ipaddr)
 		struct hostent *server = NULL;
 		server = gethostbyname(ap_ipaddr);
 		if (server == NULL){
-			w_flogf(ctx, LOG_ERR, stderr, "No host with the given hostname exists: %s\n", strerror(errno));
+			w_flogf(ctx, LOG_ERR, stderr, "No host with the given hostname exists\n");
 			ret = -1;
 			goto out;
 		}
@@ -1139,8 +1139,8 @@ void print_help(int exval)
 	printf("  -s              start the server on a socket\n");
 	printf("  -d              use the dynamic complex mode\n");
 	printf("                  (server only with matrices for each connection)\n");
-	printf("  -a AP_ADDR      set the access point IP address\n");
-	printf("                  AP_ADDR: IPv4 address of AP instance, localhost if using a single instance\n");
+	printf("  -a AP_ADDR      Set remote operation mode with an access point address to associate with\n");
+	printf("                  AP_ADDR: IPv4 address or hostname of AP machine, \"localhost\" if current machine is AP\n");
 
 	exit(exval);
 }
@@ -1221,8 +1221,8 @@ int main(int argc, char *argv[])
 			break;
 		case 'a':
 			ap_ip = optarg;
-			ctx.op_mode = strcmp(ap_ip, "localhost") == 0 ? LOCAL : REMOTE;
-			is_ap = false;
+			ctx.op_mode = REMOTE;
+			is_ap = strcmp(ap_ip, "localhost") == 0;
 			break;
 		case '?':
 			printf("wmediumd: Error - No such option: "
@@ -1237,7 +1237,7 @@ int main(int argc, char *argv[])
 		print_help(EXIT_FAILURE);
 
 	if (ap_ip == NULL)
-		ctx.op_mode = REMOTE;
+		ctx.op_mode = LOCAL;
 
 	if (full_dynamic) {
 		if (config_file) {
