@@ -106,6 +106,9 @@ enum {
 #define AP_DEFAULT 2
 #define MEDIUM_ID_DEFAULT 0
 
+#define AP_DEFAULT_PORT 4001
+#define PAGE_SIZE 4096
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <syslog.h>
@@ -132,6 +135,12 @@ typedef uint64_t u64;
 #define CCA_THRESHOLD	(-90)
 #define ENABLE_MEDIUM_DETECTION	true
 
+enum En_OperationMode
+{
+	LOCAL,
+	REMOTE
+};
+
 struct wqueue {
 	struct list_head frames;
 	int cw_min;
@@ -156,11 +165,13 @@ struct station {
 };
 
 struct wmediumd {
+	int op_mode;
 	int timerfd;
-
+	int net_sock;
 	struct nl_sock *sock;
     bool enable_medium_detection;
 	int num_stas;
+	struct list_head pending_txinfo_frames;
 	struct list_head stations;
 	struct station **sta_array;
 	int *snr_matrix;
