@@ -713,12 +713,25 @@ void deliver_expired_frames(struct wmediumd *ctx)
 {
 	struct timespec now, _diff;
 	struct station *station;
-	struct list_head *l;
+	struct list_head *l,*rand_it,*rand_start;
     int i, j, duration;
     int sta1_medium_id;
 
 	clock_gettime(CLOCK_MONOTONIC, &now);
-	list_for_each_entry(station, &ctx->stations, list) {
+	
+	int rand_start_cnt = rand() % ctx->num_stas;
+	
+	// Find the randomized starting point in the list
+	rand_start = &ctx->stations;
+	for (i = 0; i < rand_start_cnt; i++) {
+		rand_start = rand_start->next;
+	}
+
+	list_for_each(rand_it, rand_start) {
+		//skip if we iterate over head
+		if(rand_it == &ctx->stations)
+			continue;
+		station = list_entry(rand_it, struct station, list);
 		int q_ct[IEEE80211_NUM_ACS] = {};
 		for (i = 0; i < IEEE80211_NUM_ACS; i++) {
 			list_for_each(l, &station->queues[i].frames) {
