@@ -248,6 +248,11 @@ struct two_ray_ground_model_param {
 	int sL;
 };
 
+struct weissberger_model_param {
+	struct log_distance_model_param logd_param;
+	double depth;
+};
+
 struct intf_info {
 	int signal;
 	int duration;

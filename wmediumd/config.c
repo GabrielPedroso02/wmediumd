@@ -30,6 +30,50 @@
 
 #include "wmediumd.h"
 
+void printHelloWorldToFile1(const char *filename, int call_count) {
+    // Open the file in write mode ("w"), which creates the file if it doesn't exist
+    FILE *file = fopen(filename, "w");
+
+    // Check if the file was opened successfully
+    if (file == NULL) {
+        // Print an error message if the file couldn't be opened
+        printf("Error: Could not open file %s for writing.\n", filename);
+        return;
+    }
+
+    // Write "Hello, World!" to the file
+    fprintf(file, "Times entering this function: %d\n", call_count);
+
+    // Close the file
+    fclose(file);
+
+    // Optional: Confirm that the operation was successful
+    printf("Successfully wrote 'Hello, World!' to %s\n", filename);
+}
+
+void printHelloWorldToFile2(const char *filename, int param1, double param2, double param3) {
+    // Open the file in write mode ("w"), which creates the file if it doesn't exist
+    FILE *file = fopen(filename, "w");
+
+    // Check if the file was opened successfully
+    if (file == NULL) {
+        // Print an error message if the file couldn't be opened
+        printf("Error: Could not open file %s for writing.\n", filename);
+        return;
+    }
+
+    // Write "Hello, World!" to the file
+    fprintf(file, "LogDistance: %d\n", param1);
+    fprintf(file, "Weissberger: %.1f\n", param2);
+    fprintf(file, "freq: %.1f\n", param3);
+
+    // Close the file
+    fclose(file);
+
+    // Optional: Confirm that the operation was successful
+    printf("Successfully wrote 'Hello, World!' to %s\n", filename);
+}
+
 static void string_to_mac_address(const char *str, u8 *addr)
 {
 	int a[ETH_ALEN];
@@ -160,6 +204,30 @@ static int calc_path_loss_log_distance(void *model_param,
 	 */
 	PL = PL0 + 10.0 * param->path_loss_exponent * log10(d) + param->Xg;
 	return PL;
+}
+static int calc_path_loss_weissberger(void *model_param, 
+				struct station *dst, struct station *src)
+{
+	struct weissberger_model_param *param;
+	int log_distance_path_loss;
+	double PL = 0;
+	double f = src->freq / 1000;
+
+	param = model_param;
+
+	log_distance_path_loss = calc_path_loss_log_distance(&param->logd_param, dst, src);
+
+	if (0 < param->depth <= 14) {
+		PL = 0.45 * param->depth * pow(f,0.284);
+	}
+	else if (14 < param->depth <= 400) {
+		PL = 1.33 * pow(param->depth, 0.588) * pow(f,0.284);
+	}
+
+	//print to file --> frequency, logD result, weissb result
+	printHelloWorldToFile2("output2.txt", log_distance_path_loss, PL, f);
+
+	return PL + log_distance_path_loss;
 }
 /*
  * Calculate path loss based on a itu model
@@ -312,6 +380,10 @@ static void move_stations_to_direction(struct wmediumd *ctx)
 {
 	struct station *station;
 	struct timespec now;
+
+	static int call_count = 0;
+	call_count++;
+	printHelloWorldToFile1("output4.txt", call_count);
 
 	clock_gettime(CLOCK_MONOTONIC, &now);
 	if (!timespec_before(&ctx->next_move, &now))
@@ -500,6 +572,38 @@ static int parse_path_loss(struct wmediumd *ctx, config_t *cf)
 			w_flogf(ctx, LOG_ERR, stderr, "PL not found\n");
 			return -EINVAL;
 		}
+		ctx->path_loss_param = param;
+	}
+	else if(strncmp(path_loss_model_name, "weissberger",
+			sizeof("weissberger")) == 0) {
+		struct weissberger_model_param *param;
+		ctx->calc_path_loss = calc_path_loss_weissberger;
+		param = malloc(sizeof(*param));
+		if (!param) {
+			w_flogf(ctx, LOG_ERR, stderr,
+				"Out of memory(path_loss_param)\n");
+			return -EINVAL;
+		}
+
+		if (config_setting_lookup_float(model, "path_loss_exp",
+			&param->logd_param.path_loss_exponent) != CONFIG_TRUE) {
+			w_flogf(ctx, LOG_ERR, stderr,
+				"path_loss_exponent not found\n");
+			return -EINVAL;
+		}
+
+		if (config_setting_lookup_float(model, "xg",
+			&param->logd_param.Xg) != CONFIG_TRUE) {
+			w_flogf(ctx, LOG_ERR, stderr, "xg not found\n");
+			return -EINVAL;
+		}
+
+		if (config_setting_lookup_float(model, "depth",
+			&param->depth) != CONFIG_TRUE) {
+			w_flogf(ctx, LOG_ERR, stderr, "depth not found\n");
+			return -EINVAL;
+		}
+
 		ctx->path_loss_param = param;
 	}
 	else {
