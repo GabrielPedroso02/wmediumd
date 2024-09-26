@@ -216,11 +216,6 @@ static int calc_path_loss_weissberger(void *model_param,
 	double PL = 0;
 	double f = src->freq / 1000;
 
-	static int call_count = 0;
-	call_count++;
-	char filename[] = "a.txt";
-	filename[0] = '0' + call_count;
-
 	param = model_param;
 
 	log_distance_path_loss = calc_path_loss_log_distance(&param->logd_param, dst, src);
@@ -233,7 +228,7 @@ static int calc_path_loss_weissberger(void *model_param,
 	}
 
 	//print to file --> frequency, logD result, weissb result
-	printHelloWorldToFile2(filename, log_distance_path_loss, PL, f, src->index, dst->index);
+	printHelloWorldToFile2("output2.txt", log_distance_path_loss, PL, f, src->index, dst->index);
 
 	return PL + log_distance_path_loss;
 }
