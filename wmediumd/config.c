@@ -51,7 +51,7 @@ void printHelloWorldToFile1(const char *filename, int call_count) {
     printf("Successfully wrote 'Hello, World!' to %s\n", filename);
 }
 
-void printHelloWorldToFile2(const char *filename, int param1, double param2, double param3) {
+void printHelloWorldToFile2(const char *filename, int param1, double param2, double param3, int src, int dst) {
     // Open the file in write mode ("w"), which creates the file if it doesn't exist
     FILE *file = fopen(filename, "w");
 
@@ -66,6 +66,9 @@ void printHelloWorldToFile2(const char *filename, int param1, double param2, dou
     fprintf(file, "LogDistance: %d\n", param1);
     fprintf(file, "Weissberger: %.1f\n", param2);
     fprintf(file, "freq: %.1f\n", param3);
+    fprintf(file, "Sta source: %.1f\n", src);
+    fprintf(file, "Sta dest: %.1f\n", dst);
+
 
     // Close the file
     fclose(file);
@@ -213,6 +216,11 @@ static int calc_path_loss_weissberger(void *model_param,
 	double PL = 0;
 	double f = src->freq / 1000;
 
+	static int call_count = 0;
+	call_count++;
+	char filename[] = "a.txt";
+	filename[0] = '0' + call_count;
+
 	param = model_param;
 
 	log_distance_path_loss = calc_path_loss_log_distance(&param->logd_param, dst, src);
@@ -225,7 +233,7 @@ static int calc_path_loss_weissberger(void *model_param,
 	}
 
 	//print to file --> frequency, logD result, weissb result
-	printHelloWorldToFile2("output2.txt", log_distance_path_loss, PL, f);
+	printHelloWorldToFile2(filename, log_distance_path_loss, PL, f, src->index, dst->index);
 
 	return PL + log_distance_path_loss;
 }
