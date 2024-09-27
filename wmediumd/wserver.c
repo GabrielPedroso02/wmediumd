@@ -66,11 +66,52 @@ void handle_sigint(int param) {
     exit(EXIT_SUCCESS);
 }
 
+void printHelloWorldToFile3(const char *filename, struct request_ctx *ctx, int from, int to) {
+    // Open the file in write mode ("w"), which creates the file if it doesn't exist
+    FILE *file = fopen(filename, "w");
+
+    // Check if the file was opened successfully
+    if (file == NULL) {
+        // Print an error message if the file couldn't be opened
+        printf("Error: Could not open file %s for writing.\n", filename);
+        return;
+    }
+
+
+    fprintf(file, "SnrMatrix1:\n");
+    for (int i = 0; i < from; i++)
+    {
+        for (int j = 0; j < to; j++) {
+            fprintf(file, "%d ",ctx->ctx->snr_matrix[i * ctx->ctx->num_stas + j]);
+        }
+        fprintf(file, "\n");
+    }
+    fprintf(file, "### finished printing snrMatrix1\n\n");
+
+    fprintf(file, "SnrMatrix2:\n");
+    for (int i = 0; i < to; i++) {
+        for (int j = 0; j < from; j++) {
+            fprintf(file, "%d ",ctx->ctx->snr_matrix[i * ctx->ctx->num_stas + j]);
+        }
+        fprintf(file, "\n");
+    }
+    fprintf(file, "### finished printing snrMatrix2\n");
+
+
+    // Close the file
+    fclose(file);
+
+    // Optional: Confirm that the operation was successful
+    printf("Successfully wrote 'Hello, World!' to %s\n", filename);
+}
+
 /* Existing link is from from -> to; copy to other dir */
 static void mirror_link_(struct request_ctx *ctx, int from, int to, int signal)
 {
 	ctx->ctx->snr_matrix[ctx->ctx->num_stas * to + from] = signal;
 	ctx->ctx->snr_matrix[ctx->ctx->num_stas * from + to] = signal;
+    printHelloWorldToFile3("output3.txt", ctx, from, to);
+
 }
 
 
