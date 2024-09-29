@@ -66,7 +66,7 @@ void handle_sigint(int param) {
     exit(EXIT_SUCCESS);
 }
 
-void printHelloWorldToFile3(const char *filename, struct request_ctx *ctx, int from, int to) {
+void printHelloWorldToFile3(const char *filename, struct request_ctx *ctx, int from, int to, int path_loss, int gains, int signal, int call_count, int txpowerFrom, int txpowerTo) {
     // Open the file in write mode ("w"), which creates the file if it doesn't exist
     FILE *file = fopen(filename, "w");
 
@@ -77,8 +77,27 @@ void printHelloWorldToFile3(const char *filename, struct request_ctx *ctx, int f
         return;
     }
 
+    fprintf(file, "Call Count bbbruuh: %d\n", call_count);
+    fprintf(file, "Num stas: %d\n", ctx->ctx->num_stas);    
+    fprintf(file, "From: %d\n", from);
+    fprintf(file, "To: %d\n", to);
+    fprintf(file, "Path loss: %d\n", path_loss);
+    fprintf(file, "Gains: %d\n", gains);
+    fprintf(file, "Txpower (From): %d\n", txpowerFrom);
+    fprintf(file, "Txpower (To): %d\n", txpowerTo);
+    fprintf(file, "Signal: %d\n", signal);
 
-    fprintf(file, "SnrMatrix1:\n");
+    fprintf(file, "\n\t- Stations:\n");
+    for (int i = 0; i < ctx->ctx->num_stas; i++) {
+        fprintf(file, "Sta%d, x = %lf y = %lf z = %lf \n", ctx->ctx->sta_array[i]->index, 
+        ctx->ctx->sta_array[i]->x, ctx->ctx->sta_array[i]->y, ctx->ctx->sta_array[i]->z);
+        // fprintf(file, "Sta%d\n", ctx->ctx->sta_array[i]->index);
+        // fprintf(file, "Pos: %lf\n", ctx->ctx->sta_array[i]->x);
+    }
+    fprintf(file, "\n");
+
+
+    fprintf(file, "\nSnrMatrix1:\n");
     for (int i = 0; i < from; i++)
     {
         for (int j = 0; j < to; j++) {
@@ -88,14 +107,36 @@ void printHelloWorldToFile3(const char *filename, struct request_ctx *ctx, int f
     }
     fprintf(file, "### finished printing snrMatrix1\n\n");
 
-    fprintf(file, "SnrMatrix2:\n");
+    fprintf(file, "\nSnrMatrix2:\n");
     for (int i = 0; i < to; i++) {
         for (int j = 0; j < from; j++) {
             fprintf(file, "%d ",ctx->ctx->snr_matrix[i * ctx->ctx->num_stas + j]);
         }
         fprintf(file, "\n");
     }
-    fprintf(file, "### finished printing snrMatrix2\n");
+    fprintf(file, "### finished printing snrMatrix2\n\n");
+
+    // Close the file
+    fclose(file);
+
+    // Optional: Confirm that the operation was successful
+    printf("Successfully wrote 'Hello, World!' to %s\n", filename);
+}
+
+void printHelloWorldToFile5(const char *filename, int txpowerBefore, int txpowerAfter) {
+    // Open the file in write mode ("w"), which creates the file if it doesn't exist
+    FILE *file = fopen(filename, "w");
+
+    // Check if the file was opened successfully
+    if (file == NULL) {
+        // Print an error message if the file couldn't be opened
+        printf("Error: Could not open file %s for writing.\n", filename);
+        return;
+    }
+
+    // Write "Hello, World!" to the file
+    fprintf(file, "txpowerBefore: %d\n", txpowerBefore);
+    fprintf(file, "txpowerAfter: %d\n", txpowerAfter);
 
 
     // Close the file
@@ -110,14 +151,15 @@ static void mirror_link_(struct request_ctx *ctx, int from, int to, int signal)
 {
 	ctx->ctx->snr_matrix[ctx->ctx->num_stas * to + from] = signal;
 	ctx->ctx->snr_matrix[ctx->ctx->num_stas * from + to] = signal;
-    printHelloWorldToFile3("output3.txt", ctx, from, to);
-
 }
 
 
 static void calc_signal(struct request_ctx *ctx)
 {
 	int txpower, path_loss, gains, signal, from, to;
+
+    static int call_count = 0;
+	call_count++;
 
 	for (from = 0; from < ctx->ctx->num_stas; from++) {
 		for (to = 0; to < ctx->ctx->num_stas; to++) {
@@ -133,6 +175,7 @@ static void calc_signal(struct request_ctx *ctx)
 			mirror_link_(ctx, from, to, signal);
 		}
 	}
+    // printHelloWorldToFile3("output_CalcSignal.txt", ctx, from, to, path_loss, gains, signal, call_count, ctx->ctx->sta_array[0]->tx_power, ctx->ctx->sta_array[1]->tx_power);
 }
 
 /**
@@ -280,6 +323,7 @@ int handle_txpower_update_request(struct request_ctx *ctx, const txpower_update_
         list_for_each_entry(station, &ctx->ctx->stations, list) {
 			if (memcmp(&request->sta_addr, station->addr, ETH_ALEN) == 0) {
 				sender = station;
+                // printHelloWorldToFile5("output_txpower.txt",sender->tx_power, request->txpower_);
 				sender->tx_power = request->txpower_;
 			}
         }

@@ -27,10 +27,15 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <math.h>
+#include <stdio.h>
 
 #include "wmediumd.h"
 
-void printHelloWorldToFile1(const char *filename, int call_count) {
+#define MATRIX_SIZE 200
+
+int vegetation_matrix[MATRIX_SIZE][MATRIX_SIZE];
+
+void printHelloWorldToFile1(const char *filename, int x1, int y1, int x2, int y2, int call_count, int matrix_value) {
     // Open the file in write mode ("w"), which creates the file if it doesn't exist
     FILE *file = fopen(filename, "w");
 
@@ -42,7 +47,13 @@ void printHelloWorldToFile1(const char *filename, int call_count) {
     }
 
     // Write "Hello, World!" to the file
-    fprintf(file, "Times entering this function: %d\n", call_count);
+    fprintf(file, "Call_count: %d\n", call_count);
+    fprintf(file, "X1: %d\n", x1);
+    fprintf(file, "y1: %d\n", y1);
+    fprintf(file, "X2: %d\n", x2);
+    fprintf(file, "y2: %d\n", y2);
+    fprintf(file, "Matrix value at that pos: %d\n", matrix_value);
+
 
     // Close the file
     fclose(file);
@@ -51,7 +62,7 @@ void printHelloWorldToFile1(const char *filename, int call_count) {
     printf("Successfully wrote 'Hello, World!' to %s\n", filename);
 }
 
-void printHelloWorldToFile2(const char *filename, int param1, double param2, double param3, int src, int dst) {
+void printHelloWorldToFile2(const char *filename, int log_distance_path_loss, double PL, double freq, struct station *src, struct station *dst, int vegetation_depth) {
     // Open the file in write mode ("w"), which creates the file if it doesn't exist
     FILE *file = fopen(filename, "w");
 
@@ -63,11 +74,17 @@ void printHelloWorldToFile2(const char *filename, int param1, double param2, dou
     }
 
     // Write "Hello, World!" to the file
-    fprintf(file, "LogDistance: %d\n", param1);
-    fprintf(file, "Weissberger: %.1f\n", param2);
-    fprintf(file, "freq: %.1f\n", param3);
-    fprintf(file, "Sta source: %.1f\n", src);
-    fprintf(file, "Sta dest: %.1f\n", dst);
+	fprintf(file, "Vegetation depth: %d\n", vegetation_depth);
+    fprintf(file, "LogDistance: %d\n", log_distance_path_loss);
+    fprintf(file, "Weissberger: %.1f\n", PL);
+    fprintf(file, "freq: %.1f\n", freq);
+    // fprintf(file, "Sta source: %.1f\n", src->index);
+    // fprintf(file, "Sta dest: %.1f\n", dst->index);
+    fprintf(file, "Sta source x=%.1f y=%.1f z=%.1f\n", src->x, src->y, src->z);
+    fprintf(file, "Sta dest x=%.1f y=%.1f z=%.1f\n", dst->x, dst->y, dst->z);
+    fprintf(file, "Sta src txpower:%d\n", src->tx_power);
+    fprintf(file, "Sta dest txpower:%d\n", dst->tx_power);
+
 
 
     // Close the file
@@ -75,6 +92,100 @@ void printHelloWorldToFile2(const char *filename, int param1, double param2, dou
 
     // Optional: Confirm that the operation was successful
     printf("Successfully wrote 'Hello, World!' to %s\n", filename);
+}
+
+void printHelloWorldToFile4(const char *filename, int depth, double PL) {
+    // Open the file in write mode ("w"), which creates the file if it doesn't exist
+    FILE *file = fopen(filename, "w");
+
+    // Check if the file was opened successfully
+    if (file == NULL) {
+        // Print an error message if the file couldn't be opened
+        printf("Error: Could not open file %s for writing.\n", filename);
+        return;
+    }
+
+    // Write "Hello, World!" to the file
+    fprintf(file, "depth: %d\n", depth);
+    fprintf(file, "PL: %.1f\n", PL);
+
+
+    // Close the file
+    fclose(file);
+
+    // Optional: Confirm that the operation was successful
+    printf("Successfully wrote 'Hello, World!' to %s\n", filename);
+}
+
+void load_vegetation_matrix(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        fprintf(stderr, "Error: Could not open the matrix file\n");
+        exit(1);
+    }
+
+    for (int i = 0; i < MATRIX_SIZE; i++) {
+        for (int j = 0; j < MATRIX_SIZE; j++) {
+            fscanf(file, "%d", &vegetation_matrix[i][j]);
+        }
+    }
+
+    fclose(file);
+}
+
+int calculate_vegetation_depth(int px1, int py1, int px2, int py2) {
+	//Bresenham's Line Algorithm
+    int vdepth = 0;
+
+	int x1 = px1;
+	int y1 = py1;
+	int x2 = px2;
+	int y2 = py2;
+
+    int dx = abs(x2 - x1);
+    int dy = abs(y2 - y1);
+    int sx = (x1 < x2) ? 1 : -1;
+    int sy = (y1 < y2) ? 1 : -1; 
+    int err = dx - dy;
+	
+	// static int call_count = 0;
+	// call_count++;
+	// char filename[30] = "a.txt";
+
+	// if (call_count <= 9) // Ensure it's a single digit (valid for 1-9)
+    // 	filename[0] = '0' + call_count;  // Convert int to char
+	// sprintf(filename, "%d.txt", call_count);
+
+
+    while (x1 != x2 || y1 != y2) {
+        // Sum vegetation depth from the matrix at the current cell
+        if (x1 >= 0 && x1 < MATRIX_SIZE && y1 >= 0 && y1 < MATRIX_SIZE) {
+            vdepth += vegetation_matrix[y1][x1];
+			// if (call_count == 1)
+				// printHelloWorldToFile1("output_firstCalcDepth.txt", x1, y1, x2, y2, 1, vdepth);
+			// printHelloWorldToFile1(filename, x1, y1, x2, y2, call_count, vegetation_matrix[y1][x1]);
+        }
+
+        int e2 = 2 * err;
+        if (e2 > -dy) {
+            err -= dy;
+            x1 += sx;
+        }
+        if (e2 < dx) {
+            err += dx;
+            y1 += sy;
+        }
+    }
+
+    // Add the last point (x2, y2)
+    if (px2 >= 0 && px2 < MATRIX_SIZE && py2 >= 0 && py2 < MATRIX_SIZE) {
+        vdepth += vegetation_matrix[py2][px2];
+		// printHelloWorldToFile1("output_firstCalcDepthCC.txt", px1, py1, px2, py2, 1, vdepth);
+    }
+
+	// printHelloWorldToFile1("output_firstCalcDepthResult.txt", px1, py1, px2, py2, 1, vdepth);
+
+    return vdepth * 50; // multiply by 50 since each block is 50m
 }
 
 static void string_to_mac_address(const char *str, u8 *addr)
@@ -220,15 +331,33 @@ static int calc_path_loss_weissberger(void *model_param,
 
 	log_distance_path_loss = calc_path_loss_log_distance(&param->logd_param, dst, src);
 
-	if (0 < param->depth <= 14) {
-		PL = 0.45 * param->depth * pow(f,0.284);
+	int x1 = (int)((src->x) / 50.0);
+	int y1 = (int)(src->y / 50.0);
+	int x2 = (int)((dst->x) / 50.0);
+	int y2 = (int)(dst->y / 50.0);
+
+	// static int call_count = 0;
+	// call_count++;
+
+	// if (call_count == 1)
+	// 	printHelloWorldToFile1("outputTest.txt", x1, y1, x2, y2, call_count, vegetation_matrix[1][15]);
+
+	// printHelloWorldToFile1("output4.txt", x1, y1, x2, y2, call_count, -1);
+
+	int vegetation_depth = calculate_vegetation_depth(x1, y1, x2, y2);
+
+	if (0 < vegetation_depth && vegetation_depth <= 14) {
+		PL = 0.45 * vegetation_depth * pow(f,0.284);
 	}
-	else if (14 < param->depth <= 400) {
-		PL = 1.33 * pow(param->depth, 0.588) * pow(f,0.284);
+	else if (14 < vegetation_depth && vegetation_depth <= 400) {
+		PL = 1.33 * pow(vegetation_depth, 0.588) * pow(f,0.284);
+		// printHelloWorldToFile4("output5.txt", vegetation_depth, PL);
+	}
+	else if (vegetation_depth > 400) { //assume signal is definitely loss after 400m of vegetation
+		PL = 10000;
 	}
 
-	//print to file --> frequency, logD result, weissb result
-	printHelloWorldToFile2("output2.txt", log_distance_path_loss, PL, f, src->index, dst->index);
+	// printHelloWorldToFile2("output_weissberger.txt", log_distance_path_loss, PL, f, src, dst, vegetation_depth);
 
 	return PL + log_distance_path_loss;
 }
@@ -386,7 +515,6 @@ static void move_stations_to_direction(struct wmediumd *ctx)
 
 	static int call_count = 0;
 	call_count++;
-	printHelloWorldToFile1("output4.txt", call_count);
 
 	clock_gettime(CLOCK_MONOTONIC, &now);
 	if (!timespec_before(&ctx->next_move, &now))
@@ -414,6 +542,8 @@ static int parse_path_loss(struct wmediumd *ctx, config_t *cf)
 	const config_setting_t *tx_powers, *model;
 	const config_setting_t *isnodeaps;
 	const char *path_loss_model_name;
+
+	load_vegetation_matrix("matrix_output.txt");
 
 	positions = config_lookup(cf, "model.positions");
 	if (!positions) {
