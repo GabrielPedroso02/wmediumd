@@ -31,7 +31,7 @@
 
 #include "wmediumd.h"
 
-#define MATRIX_SIZE 200
+#define MATRIX_SIZE 150
 
 int vegetation_matrix[MATRIX_SIZE][MATRIX_SIZE];
 
@@ -185,7 +185,7 @@ int calculate_vegetation_depth(int px1, int py1, int px2, int py2) {
 
 	// printHelloWorldToFile1("output_firstCalcDepthResult.txt", px1, py1, px2, py2, 1, vdepth);
 
-    return vdepth * 50; // multiply by 50 since each block is 50m
+    return vdepth * 10; // multiply by 10 since each block is 10m
 }
 
 static void string_to_mac_address(const char *str, u8 *addr)
@@ -331,10 +331,10 @@ static int calc_path_loss_weissberger(void *model_param,
 
 	log_distance_path_loss = calc_path_loss_log_distance(&param->logd_param, dst, src);
 
-	int x1 = (int)((src->x) / 50.0);
-	int y1 = (int)(src->y / 50.0);
-	int x2 = (int)((dst->x) / 50.0);
-	int y2 = (int)(dst->y / 50.0);
+	int x1 = (int)((src->x) / 10.0);
+	int y1 = 149 - (int)(src->y / 10.0);
+	int x2 = (int)((dst->x) / 10.0);
+	int y2 = 149 -(int)(dst->y / 10.0);
 
 	// static int call_count = 0;
 	// call_count++;
@@ -358,6 +358,20 @@ static int calc_path_loss_weissberger(void *model_param,
 	}
 
 	// printHelloWorldToFile2("output_weissberger.txt", log_distance_path_loss, PL, f, src, dst, vegetation_depth);
+
+	// FILE *log_file = fopen("vegetation_report.log", "a");
+	// if (log_file == NULL) {
+	// 	perror("Error opening log file");
+	// 	return -1;
+	// }
+
+	// // Write the vegetation depth and PL to the log file
+	// if (PL < 200000)
+    // 	fprintf(log_file, "From: %d (%.1f,%.1f), To %d (%.1f,%.1f), Vegetation Depth: %d, Weissberger: %.2f, Total Path Loss: %d\n",
+    //         src->index, src->x, src->y, dst->index, dst->x, dst->y, vegetation_depth, PL, (int)(PL + log_distance_path_loss));
+
+    // // Close the log file
+    // fclose(log_file);
 
 	return PL + log_distance_path_loss;
 }
@@ -543,7 +557,7 @@ static int parse_path_loss(struct wmediumd *ctx, config_t *cf)
 	const config_setting_t *isnodeaps;
 	const char *path_loss_model_name;
 
-	load_vegetation_matrix("matrix_output.txt");
+	load_vegetation_matrix("matrix_output2.txt");
 
 	positions = config_lookup(cf, "model.positions");
 	if (!positions) {
