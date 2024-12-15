@@ -31,7 +31,7 @@
 
 #include "wmediumd.h"
 
-#define MAP_AREA = 1500
+#define MAP_AREA 1500
 int **vegetation_matrix = NULL;
 
 void printNumberOfCalls(const char *filename, int x1, int y1, int x2, int y2, int call_count, int matrix_value) {
