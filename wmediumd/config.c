@@ -31,6 +31,7 @@
 
 #include "wmediumd.h"
 
+#define MAP_AREA = 1500
 int **vegetation_matrix = NULL;
 
 void printNumberOfCalls(const char *filename, int x1, int y1, int x2, int y2, int call_count, int matrix_value) {
@@ -198,7 +199,7 @@ int calculate_vegetation_depth(int px1, int py1, int px2, int py2, int matrix_si
 
 	// printNumberOfCalls("output_firstCalcDepthResult.txt", px1, py1, px2, py2, 1, vdepth);
 
-    return vdepth * 10; // multiply by 10 since each block is 10m
+    return vdepth * (MAP_AREA/matrix_size); // multiply by the size of the block
 }
 
 static void string_to_mac_address(const char *str, u8 *addr)
