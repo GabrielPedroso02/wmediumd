@@ -66,73 +66,6 @@ void handle_sigint(int param) {
     exit(EXIT_SUCCESS);
 }
 
-void printSignal(const char *filename, struct request_ctx *ctx, int from, int to, int path_loss, int gains, int signal, int call_count, int txpowerFrom, int txpowerTo) {
-    FILE *file = fopen(filename, "w");
-
-    if (file == NULL) {
-        printf("Error: Could not open file %s for writing.\n", filename);
-        return;
-    }
-
-    // debug
-
-    fprintf(file, "Call Count bbbruuh: %d\n", call_count);
-    fprintf(file, "Num stas: %d\n", ctx->ctx->num_stas);    
-    fprintf(file, "From: %d\n", from);
-    fprintf(file, "To: %d\n", to);
-    fprintf(file, "Path loss: %d\n", path_loss);
-    fprintf(file, "Gains: %d\n", gains);
-    fprintf(file, "Txpower (From): %d\n", txpowerFrom);
-    fprintf(file, "Txpower (To): %d\n", txpowerTo);
-    fprintf(file, "Signal: %d\n", signal);
-
-    fprintf(file, "\n\t- Stations:\n");
-    for (int i = 0; i < ctx->ctx->num_stas; i++) {
-        fprintf(file, "Sta%d, x = %lf y = %lf z = %lf \n", ctx->ctx->sta_array[i]->index, 
-        ctx->ctx->sta_array[i]->x, ctx->ctx->sta_array[i]->y, ctx->ctx->sta_array[i]->z);
-        // fprintf(file, "Sta%d\n", ctx->ctx->sta_array[i]->index);
-        // fprintf(file, "Pos: %lf\n", ctx->ctx->sta_array[i]->x);
-    }
-    fprintf(file, "\n");
-
-    fprintf(file, "\nSnrMatrix1:\n");
-    for (int i = 0; i < from; i++)
-    {
-        for (int j = 0; j < to; j++) {
-            fprintf(file, "%d ",ctx->ctx->snr_matrix[i * ctx->ctx->num_stas + j]);
-        }
-        fprintf(file, "\n");
-    }
-    fprintf(file, "### finished printing snrMatrix1\n\n");
-
-    fprintf(file, "\nSnrMatrix2:\n");
-    for (int i = 0; i < to; i++) {
-        for (int j = 0; j < from; j++) {
-            fprintf(file, "%d ",ctx->ctx->snr_matrix[i * ctx->ctx->num_stas + j]);
-        }
-        fprintf(file, "\n");
-    }
-    fprintf(file, "### finished printing snrMatrix2\n\n");
-
-    fclose(file);
-}
-
-void printTxPower(const char *filename, int txpowerBefore, int txpowerAfter) {
-    FILE *file = fopen(filename, "w");
-
-    if (file == NULL) {
-        printf("Error: Could not open file %s for writing.\n", filename);
-        return;
-    }
-
-    // debug
-
-    fprintf(file, "txpowerBefore: %d\n", txpowerBefore);
-    fprintf(file, "txpowerAfter: %d\n", txpowerAfter);
-
-    fclose(file);
-}
-
 /* Existing link is from from -> to; copy to other dir */
 static void mirror_link_(struct request_ctx *ctx, int from, int to, int signal)
 {
@@ -162,7 +95,6 @@ static void calc_signal(struct request_ctx *ctx)
 			mirror_link_(ctx, from, to, signal);
 		}
 	}
-    // printSignal("output_CalcSignal.txt", ctx, from, to, path_loss, gains, signal, call_count, ctx->ctx->sta_array[0]->tx_power, ctx->ctx->sta_array[1]->tx_power);
 }
 
 /**
@@ -310,7 +242,6 @@ int handle_txpower_update_request(struct request_ctx *ctx, const txpower_update_
         list_for_each_entry(station, &ctx->ctx->stations, list) {
 			if (memcmp(&request->sta_addr, station->addr, ETH_ALEN) == 0) {
 				sender = station;
-                // printTxPower("output_txpower.txt",sender->tx_power, request->txpower_);
 				sender->tx_power = request->txpower_;
 			}
         }
