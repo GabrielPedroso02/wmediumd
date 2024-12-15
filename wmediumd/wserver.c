@@ -66,16 +66,15 @@ void handle_sigint(int param) {
     exit(EXIT_SUCCESS);
 }
 
-void printHelloWorldToFile3(const char *filename, struct request_ctx *ctx, int from, int to, int path_loss, int gains, int signal, int call_count, int txpowerFrom, int txpowerTo) {
-    // Open the file in write mode ("w"), which creates the file if it doesn't exist
+void printSignal(const char *filename, struct request_ctx *ctx, int from, int to, int path_loss, int gains, int signal, int call_count, int txpowerFrom, int txpowerTo) {
     FILE *file = fopen(filename, "w");
 
-    // Check if the file was opened successfully
     if (file == NULL) {
-        // Print an error message if the file couldn't be opened
         printf("Error: Could not open file %s for writing.\n", filename);
         return;
     }
+
+    // debug
 
     fprintf(file, "Call Count bbbruuh: %d\n", call_count);
     fprintf(file, "Num stas: %d\n", ctx->ctx->num_stas);    
@@ -96,7 +95,6 @@ void printHelloWorldToFile3(const char *filename, struct request_ctx *ctx, int f
     }
     fprintf(file, "\n");
 
-
     fprintf(file, "\nSnrMatrix1:\n");
     for (int i = 0; i < from; i++)
     {
@@ -116,34 +114,23 @@ void printHelloWorldToFile3(const char *filename, struct request_ctx *ctx, int f
     }
     fprintf(file, "### finished printing snrMatrix2\n\n");
 
-    // Close the file
     fclose(file);
-
-    // Optional: Confirm that the operation was successful
-    printf("Successfully wrote 'Hello, World!' to %s\n", filename);
 }
 
-void printHelloWorldToFile5(const char *filename, int txpowerBefore, int txpowerAfter) {
-    // Open the file in write mode ("w"), which creates the file if it doesn't exist
+void printTxPower(const char *filename, int txpowerBefore, int txpowerAfter) {
     FILE *file = fopen(filename, "w");
 
-    // Check if the file was opened successfully
     if (file == NULL) {
-        // Print an error message if the file couldn't be opened
         printf("Error: Could not open file %s for writing.\n", filename);
         return;
     }
 
-    // Write "Hello, World!" to the file
+    // debug
+
     fprintf(file, "txpowerBefore: %d\n", txpowerBefore);
     fprintf(file, "txpowerAfter: %d\n", txpowerAfter);
 
-
-    // Close the file
     fclose(file);
-
-    // Optional: Confirm that the operation was successful
-    printf("Successfully wrote 'Hello, World!' to %s\n", filename);
 }
 
 /* Existing link is from from -> to; copy to other dir */
@@ -175,7 +162,7 @@ static void calc_signal(struct request_ctx *ctx)
 			mirror_link_(ctx, from, to, signal);
 		}
 	}
-    // printHelloWorldToFile3("output_CalcSignal.txt", ctx, from, to, path_loss, gains, signal, call_count, ctx->ctx->sta_array[0]->tx_power, ctx->ctx->sta_array[1]->tx_power);
+    // printSignal("output_CalcSignal.txt", ctx, from, to, path_loss, gains, signal, call_count, ctx->ctx->sta_array[0]->tx_power, ctx->ctx->sta_array[1]->tx_power);
 }
 
 /**
@@ -323,7 +310,7 @@ int handle_txpower_update_request(struct request_ctx *ctx, const txpower_update_
         list_for_each_entry(station, &ctx->ctx->stations, list) {
 			if (memcmp(&request->sta_addr, station->addr, ETH_ALEN) == 0) {
 				sender = station;
-                // printHelloWorldToFile5("output_txpower.txt",sender->tx_power, request->txpower_);
+                // printTxPower("output_txpower.txt",sender->tx_power, request->txpower_);
 				sender->tx_power = request->txpower_;
 			}
         }
