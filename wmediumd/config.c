@@ -31,7 +31,7 @@
 
 #include "wmediumd.h"
 
-#define MAP_AREA = 1500
+#define MAP_AREA 1500
 int **vegetation_matrix = NULL;
 
 void allocate_mem_vegetation_matrix(int matrix_size) {
