@@ -250,7 +250,8 @@ struct two_ray_ground_model_param {
 
 struct weissberger_model_param {
 	struct log_distance_model_param logd_param;
-	double depth;
+	char *vegetation_matrix_file;
+	int matrix_size;
 };
 
 struct intf_info {
