@@ -162,6 +162,7 @@ static void calc_signal(struct request_ctx *ctx)
 			mirror_link_(ctx, from, to, signal);
 		}
 	}
+    // printSignal("output_CalcSignal.txt", ctx, from, to, path_loss, gains, signal, call_count, ctx->ctx->sta_array[0]->tx_power, ctx->ctx->sta_array[1]->tx_power);
 }
 
 /**
@@ -309,6 +310,7 @@ int handle_txpower_update_request(struct request_ctx *ctx, const txpower_update_
         list_for_each_entry(station, &ctx->ctx->stations, list) {
 			if (memcmp(&request->sta_addr, station->addr, ETH_ALEN) == 0) {
 				sender = station;
+                // printTxPower("output_txpower.txt",sender->tx_power, request->txpower_);
 				sender->tx_power = request->txpower_;
 			}
         }
