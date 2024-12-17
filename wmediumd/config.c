@@ -98,6 +98,7 @@ void allocate_mem_vegetation_matrix() {
 
     vegetation_matrix = (int **)malloc(matrix_size * sizeof(int *));
     if (vegetation_matrix == NULL) {
+		// printErrorMessage("allocate_mem_error.txt", "Could not allocate memory for vegetation matrix rows", 1);
         fprintf(stderr, "Error: Could not allocate memory for vegetation matrix rows\n");
         exit(1);
     }
@@ -105,6 +106,7 @@ void allocate_mem_vegetation_matrix() {
     for (int i = 0; i < matrix_size; i++) {
         vegetation_matrix[i] = (int *)malloc(matrix_size * sizeof(int));
         if (vegetation_matrix[i] == NULL) {
+			// printErrorMessage("allocate_mem_error.txt", "Could not allocate memory for vegetation matrix columns", 2);
             fprintf(stderr, "Error: Could not allocate memory for vegetation matrix columns\n");
             exit(1);
         }
@@ -115,6 +117,7 @@ void allocate_mem_vegetation_matrix() {
 void load_vegetation_matrix(const char *filename) {
     FILE *file = fopen(filename, "r");
     if (file == NULL) {
+		// printErrorMessage("eror_opening_file.txt", filename, 0);
         fprintf(stderr, "Error: Could not open the matrix file\n");
         return;
     }
@@ -158,6 +161,9 @@ int calculate_vegetation_depth(int px1, int py1, int px2, int py2) {
         // Sum vegetation depth from the matrix at the current cell
         if (x1 >= 0 && x1 < matrix_size && y1 >= 0 && y1 < matrix_size) {
             vdepth += vegetation_matrix[y1][x1];
+			// if (call_count == 1)
+				// printNumberOfCalls("output_firstCalcDepth.txt", x1, y1, x2, y2, 1, vdepth);
+			// printNumberOfCalls(filename, x1, y1, x2, y2, call_count, vegetation_matrix[y1][x1]);
         }
 
 		if (x1 == x2 && y1 == y2) {
@@ -722,6 +728,7 @@ static int parse_path_loss(struct wmediumd *ctx, config_t *cf)
 
 		if (config_setting_lookup_string(model, "vegetation_matrix_file",
 			&param->vegetation_matrix_file) != CONFIG_TRUE) {
+			// printErrorMessage("config_lookup_error.txt", "vegetation_matrix_file not found", 1);
 			w_flogf(ctx, LOG_ERR, stderr, "vegetation_matrix not found\n");
 			return -EINVAL;
 		}
