@@ -31,8 +31,10 @@
 
 #include "wmediumd.h"
 
-#define MAP_AREA 1500
 int **vegetation_matrix = NULL;
+int matrix_size = 1;
+int map_area = 1;
+int block_size = 1;
 
 void printNumberOfCalls(const char *filename, int x1, int y1, int x2, int y2, int call_count, int matrix_value) {
     FILE *file = fopen(filename, "w");
@@ -76,23 +78,7 @@ void printWeissbergerOutput(const char *filename, int log_distance_path_loss, do
     fclose(file);
 }
 
-void printVegetationDepth(const char *filename, int depth, double PL) {
-    FILE *file = fopen(filename, "w");
-
-    if (file == NULL) {
-        printf("Error: Could not open file %s for writing.\n", filename);
-        return;
-    }
-
-	// debug
-
-    fprintf(file, "depth: %d\n", depth);
-    fprintf(file, "PL: %.1f\n", PL);
-
-    fclose(file);
-}
-
-void printErrorMessage(const char *filename, char *message, int matrix_size) {
+void printErrorMessage(const char *filename, char *message, int num) {
     FILE *file = fopen(filename, "w");
 
     if (file == NULL) {
@@ -103,12 +89,12 @@ void printErrorMessage(const char *filename, char *message, int matrix_size) {
 	// debug
 
     fprintf(file, "message: %s\n", message);
-    fprintf(file, "matrix_size: %d\n", matrix_size);
+    fprintf(file, "value: %d\n", num);
 
     fclose(file);
 }
 
-void allocate_mem_vegetation_matrix(int matrix_size) {
+void allocate_mem_vegetation_matrix() {
 
     vegetation_matrix = (int **)malloc(matrix_size * sizeof(int *));
     if (vegetation_matrix == NULL) {
@@ -128,7 +114,7 @@ void allocate_mem_vegetation_matrix(int matrix_size) {
 }
 
 
-void load_vegetation_matrix(const char *filename, int matrix_size) {
+void load_vegetation_matrix(const char *filename) {
     FILE *file = fopen(filename, "r");
     if (file == NULL) {
 		// printErrorMessage("eror_opening_file.txt", filename, 0);
@@ -136,7 +122,13 @@ void load_vegetation_matrix(const char *filename, int matrix_size) {
         return;
     }
 
-	allocate_mem_vegetation_matrix(matrix_size);
+	// reads the first two lines containing the are represented by the map and the matrix size
+    fscanf(file, "%d", &map_area);
+    fscanf(file, "%d", &matrix_size);
+
+	block_size = map_area / matrix_size;
+	
+	allocate_mem_vegetation_matrix();
 
     for (int i = 0; i < matrix_size; i++) {
         for (int j = 0; j < matrix_size; j++) {
@@ -147,7 +139,7 @@ void load_vegetation_matrix(const char *filename, int matrix_size) {
     fclose(file);
 }
 
-int calculate_vegetation_depth(int px1, int py1, int px2, int py2, int matrix_size) {
+int calculate_vegetation_depth(int px1, int py1, int px2, int py2) {
 	//Bresenham's Line Algorithm
     int vdepth = 0;
 
@@ -164,14 +156,8 @@ int calculate_vegetation_depth(int px1, int py1, int px2, int py2, int matrix_si
 	
 	// static int call_count = 0;
 	// call_count++;
-	// char filename[30] = "a.txt";
 
-	// if (call_count <= 9) // Ensure it's a single digit (valid for 1-9)
-    // 	filename[0] = '0' + call_count;  // Convert int to char
-	// sprintf(filename, "%d.txt", call_count);
-
-
-    while (x1 != x2 || y1 != y2) {
+    while (1) {
         // Sum vegetation depth from the matrix at the current cell
         if (x1 >= 0 && x1 < matrix_size && y1 >= 0 && y1 < matrix_size) {
             vdepth += vegetation_matrix[y1][x1];
@@ -179,6 +165,10 @@ int calculate_vegetation_depth(int px1, int py1, int px2, int py2, int matrix_si
 				// printNumberOfCalls("output_firstCalcDepth.txt", x1, y1, x2, y2, 1, vdepth);
 			// printNumberOfCalls(filename, x1, y1, x2, y2, call_count, vegetation_matrix[y1][x1]);
         }
+
+		if (x1 == x2 && y1 == y2) {
+			break;
+		}
 
         int e2 = 2 * err;
         if (e2 > -dy) {
@@ -191,15 +181,9 @@ int calculate_vegetation_depth(int px1, int py1, int px2, int py2, int matrix_si
         }
     }
 
-    // Add the last point (x2, y2)
-    if (px2 >= 0 && px2 < matrix_size && py2 >= 0 && py2 < matrix_size) {
-        vdepth += vegetation_matrix[py2][px2];
-		// printNumberOfCalls("output_firstCalcDepthCC.txt", px1, py1, px2, py2, 1, vdepth);
-    }
+	// printNumberOfCalls("output_calcDepthResult.txt", px1, py1, px2, py2, 1000, vdepth);
 
-	// printNumberOfCalls("output_firstCalcDepthResult.txt", px1, py1, px2, py2, 1, vdepth);
-
-    return vdepth * (MAP_AREA/matrix_size); // multiply by the size of the block
+    return vdepth * block_size;
 }
 
 static void string_to_mac_address(const char *str, u8 *addr)
@@ -345,49 +329,32 @@ static int calc_path_loss_weissberger(void *model_param,
 
 	log_distance_path_loss = calc_path_loss_log_distance(&param->logd_param, dst, src);
 
-	int x1 = (int)((src->x) / 10.0);
-	int y1 = 149 - (int)(src->y / 10.0);
-	int x2 = (int)((dst->x) / 10.0);
-	int y2 = 149 -(int)(dst->y / 10.0);
+	int x1 = (int)((src->x) / block_size);
+	int y1 = (int)((src->y) / block_size);
+	int x2 = (int)((dst->x) / block_size);
+	int y2 = (int)((dst->y) / block_size);
 
 	// static int call_count = 0;
 	// call_count++;
 
-	// if (call_count == 1)
-	// 	printNumberOfCalls("outputTest.txt", x1, y1, x2, y2, call_count, vegetation_matrix[1][15]);
+	// if (call_count == 1) {
+	// 	printNumberOfCalls("outputRealPositions.txt", (int)src->x, (int)src->y, (int)dst->x, (int)dst->y, 123, vegetation_matrix[(int)src->y][(int)src->x]);
+	// 	printNumberOfCalls("outputLogicalPositions.txt", x1, y1, x2, y2, 456, vegetation_matrix[y1][x1]);
+	// }
 
-	// printNumberOfCalls("output4.txt", x1, y1, x2, y2, call_count, -1);
-
-	int vegetation_depth = calculate_vegetation_depth(x1, y1, x2, y2, param->matrix_size);
+	int vegetation_depth = calculate_vegetation_depth(x1, y1, x2, y2);
 
 	if (0 < vegetation_depth && vegetation_depth <= 14) {
 		PL = 0.45 * vegetation_depth * pow(f, 0.284);
 	}
 	else if (14 < vegetation_depth && vegetation_depth <= 400) {
 		PL = 1.33 * pow(vegetation_depth, 0.588) * pow(f, 0.284);
-		// printVegetationDepth("output5.txt", vegetation_depth, PL);
 	}
 	else if (vegetation_depth > 400) { //assume signal is definitely loss after 400m of vegetation
 		PL = 10000;
 	}
 
 	// printWeissbergerOutput("output_weissberger.txt", log_distance_path_loss, PL, f, src, dst, vegetation_depth);
-
-	// if (call_count % 3 == 0) { //it generates A LOT of logs, so only get a third of it
-	// 	FILE *log_file = fopen("vegetation_report.log", "a");
-	// if (log_file == NULL) {
-	// 	perror("Error opening log file");
-	// 	}
-	// 	else {
-	// // Write the vegetation depth and PL to the log file
-	// if (PL < 200000)
-	// 	fprintf(log_file, "From: %d (%.1f,%.1f), To %d (%.1f,%.1f), Vegetation Depth: %d, Weissberger: %.2f, Total Path Loss: %d\n",
-    //         src->index, src->x, src->y, dst->index, dst->x, dst->y, vegetation_depth, PL, (int)(PL + log_distance_path_loss));
-
-	// // Close the log file
-	// fclose(log_file);
-	// 	}
-	// }
 
 	return PL + log_distance_path_loss;
 }
@@ -766,15 +733,7 @@ static int parse_path_loss(struct wmediumd *ctx, config_t *cf)
 			return -EINVAL;
 		}
 
-		if (config_setting_lookup_int(model, "matrix_size",
-			&param->matrix_size) != CONFIG_TRUE) {
-			w_flogf(ctx, LOG_ERR, stderr, "matrix_size not found\n");
-			return -EINVAL;
-		} 
-
-		// printErrorMessage("before_load.txt", param->vegetation_matrix_file, param->matrix_size);
-
-		load_vegetation_matrix(param->vegetation_matrix_file, param->matrix_size);
+		load_vegetation_matrix(param->vegetation_matrix_file);
 
 		ctx->path_loss_param = param;
 	}

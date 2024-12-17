@@ -76,7 +76,7 @@ void printSignal(const char *filename, struct request_ctx *ctx, int from, int to
 
     // debug
 
-    fprintf(file, "Call Count bbbruuh: %d\n", call_count);
+    fprintf(file, "Call Count: %d\n", call_count);
     fprintf(file, "Num stas: %d\n", ctx->ctx->num_stas);    
     fprintf(file, "From: %d\n", from);
     fprintf(file, "To: %d\n", to);
