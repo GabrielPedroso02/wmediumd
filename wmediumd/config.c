@@ -334,8 +334,8 @@ static int calc_path_loss_weissberger(void *model_param,
 	int x2 = (int)((dst->x) / block_size);
 	int y2 = (int)((dst->y) / block_size);
 
-	// static int call_count = 0;
-	// call_count++;
+	static int call_count = 0;
+	call_count++;
 
 	// if (call_count == 1) {
 	// 	printNumberOfCalls("outputRealPositions.txt", (int)src->x, (int)src->y, (int)dst->x, (int)dst->y, 123, vegetation_matrix[(int)src->y][(int)src->x]);
@@ -355,6 +355,26 @@ static int calc_path_loss_weissberger(void *model_param,
 	}
 
 	// printWeissbergerOutput("output_weissberger.txt", log_distance_path_loss, PL, f, src, dst, vegetation_depth);
+
+	if (call_count % 3 == 0) { //it generates A LOT of logs, so only get a third of it
+
+		FILE *log_file = fopen("vegetation_report.log", "a");
+
+		if (log_file == NULL) {
+			perror("Error opening log file");
+			return -1;
+		}
+		else {
+			// Write the vegetation depth and PL to the log file
+			if (PL < 200000) {
+				fprintf(log_file, "From: %d (%.1f,%.1f), To %d (%.1f,%.1f), Vegetation Depth: %d, Weissberger: %.2f, Total Path Loss: %d\n",
+					src->index, src->x, src->y, dst->index, dst->x, dst->y, vegetation_depth, PL, (int)(PL + log_distance_path_loss));
+			}
+
+			// Close the log file
+			fclose(log_file);
+		}
+	}
 
 	return PL + log_distance_path_loss;
 }
