@@ -32,8 +32,8 @@
 #include "wmediumd.h"
 
 int **vegetation_matrix = NULL;
-int matrix_size = 1;
-int map_area = 1;
+int matrix_cols = 1, matrix_rows = 1;
+int map_width = 1, map_height = 1;
 int block_size = 1;
 
 void printNumberOfCalls(const char *filename, int x1, int y1, int x2, int y2, int call_count, int matrix_value) {
@@ -96,15 +96,15 @@ void printErrorMessage(const char *filename, char *message, int num) {
 
 void allocate_mem_vegetation_matrix() {
 
-    vegetation_matrix = (int **)malloc(matrix_size * sizeof(int *));
+    vegetation_matrix = (int **)malloc(matrix_rows * sizeof(int *));
     if (vegetation_matrix == NULL) {
 		// printErrorMessage("allocate_mem_error.txt", "Could not allocate memory for vegetation matrix rows", 1);
         fprintf(stderr, "Error: Could not allocate memory for vegetation matrix rows\n");
         exit(1);
     }
 
-    for (int i = 0; i < matrix_size; i++) {
-        vegetation_matrix[i] = (int *)malloc(matrix_size * sizeof(int));
+    for (int i = 0; i < matrix_rows; i++) {
+        vegetation_matrix[i] = (int *)malloc(matrix_cols * sizeof(int));
         if (vegetation_matrix[i] == NULL) {
 			// printErrorMessage("allocate_mem_error.txt", "Could not allocate memory for vegetation matrix columns", 2);
             fprintf(stderr, "Error: Could not allocate memory for vegetation matrix columns\n");
@@ -123,15 +123,15 @@ void load_vegetation_matrix(const char *filename) {
     }
 
 	// reads the first two lines containing the are represented by the map and the matrix size
-    fscanf(file, "%d", &map_area);
-    fscanf(file, "%d", &matrix_size);
+    fscanf(file, "%d %d", &map_width, &map_height);
+    fscanf(file, "%d %d", &matrix_cols, &matrix_rows);
 
-	block_size = map_area / matrix_size;
+	block_size = map_width / matrix_cols;
 	
 	allocate_mem_vegetation_matrix();
 
-    for (int i = 0; i < matrix_size; i++) {
-        for (int j = 0; j < matrix_size; j++) {
+    for (int i = 0; i < matrix_rows; i++) {
+        for (int j = 0; j < matrix_cols; j++) {
             fscanf(file, "%d", &vegetation_matrix[i][j]);
         }
     }
@@ -159,7 +159,7 @@ int calculate_vegetation_depth(int px1, int py1, int px2, int py2) {
 
     while (1) {
         // Sum vegetation depth from the matrix at the current cell
-        if (x1 >= 0 && x1 < matrix_size && y1 >= 0 && y1 < matrix_size) {
+        if (x1 >= 0 && x1 < matrix_cols && y1 >= 0 && y1 < matrix_rows) {
             vdepth += vegetation_matrix[y1][x1];
 			// if (call_count == 1)
 				// printNumberOfCalls("output_firstCalcDepth.txt", x1, y1, x2, y2, 1, vdepth);
@@ -334,8 +334,8 @@ static int calc_path_loss_weissberger(void *model_param,
 	int x2 = (int)((dst->x) / block_size);
 	int y2 = (int)((dst->y) / block_size);
 
-	static int call_count = 0;
-	call_count++;
+	// static int call_count = 0;
+	// call_count++;
 
 	// if (call_count == 1) {
 	// 	printNumberOfCalls("outputRealPositions.txt", (int)src->x, (int)src->y, (int)dst->x, (int)dst->y, 123, vegetation_matrix[(int)src->y][(int)src->x]);
@@ -356,25 +356,25 @@ static int calc_path_loss_weissberger(void *model_param,
 
 	// printWeissbergerOutput("output_weissberger.txt", log_distance_path_loss, PL, f, src, dst, vegetation_depth);
 
-	if (call_count % 3 == 0) { //it generates A LOT of logs, so only get a third of it
+	// if (call_count % 3 == 0) { //it generates A LOT of logs, so only get a third of it
 
-		FILE *log_file = fopen("vegetation_report.log", "a");
+	// 	FILE *log_file = fopen("vegetation_report.log", "a");
 
-		if (log_file == NULL) {
-			perror("Error opening log file");
-			return -1;
-		}
-		else {
-			// Write the vegetation depth and PL to the log file
-			if (PL < 200000) {
-				fprintf(log_file, "From: %d (%.1f,%.1f), To %d (%.1f,%.1f), Vegetation Depth: %d, Weissberger: %.2f, Total Path Loss: %d\n",
-					src->index, src->x, src->y, dst->index, dst->x, dst->y, vegetation_depth, PL, (int)(PL + log_distance_path_loss));
-			}
+	// 	if (log_file == NULL) {
+	// 		perror("Error opening log file");
+	// 		return -1;
+	// 	}
+	// 	else {
+	// 		// Write the vegetation depth and PL to the log file
+	// 		if (PL < 200000) {
+	// 			fprintf(log_file, "From: %d (%.1f,%.1f), To %d (%.1f,%.1f), Vegetation Depth: %d, Weissberger: %.2f, Total Path Loss: %d\n",
+	// 				src->index, src->x, src->y, dst->index, dst->x, dst->y, vegetation_depth, PL, (int)(PL + log_distance_path_loss));
+	// 		}
 
-			// Close the log file
-			fclose(log_file);
-		}
-	}
+	// 		// Close the log file
+	// 		fclose(log_file);
+	// 	}
+	// }
 
 	return PL + log_distance_path_loss;
 }
